@@ -1,0 +1,66 @@
+name: Post to Discord
+
+on:
+  workflow_dispatch:
+    inputs:
+      server:
+        description: "السيرفر"
+        type: choice
+        options:
+          - العربي
+          - الانجليزي
+          - الاثنين
+        required: true
+      room:
+        description: "الروم"
+        type: choice
+        options:
+          - مشاكل وحلول
+          - تحديثات
+        required: true
+      kind:
+        description: "النوع"
+        type: choice
+        options:
+          - مشكلة
+          - حل
+          - نصيحة
+          - تحديث
+        required: true
+      title:
+        description: "العنوان"
+        type: string
+        required: true
+      details:
+        description: "التفاصيل (سطر جديد اكتب \\n)"
+        type: string
+        required: false
+      link:
+        description: "رابط (اختياري)"
+        type: string
+        required: false
+      image:
+        description: "رابط صورة (اختياري)"
+        type: string
+        required: false
+
+jobs:
+  post:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Send
+        env:
+          AR_WEBHOOK_UPDATES: ${{ secrets.AR_WEBHOOK_UPDATES }}
+          AR_WEBHOOK_ISSUES: ${{ secrets.AR_WEBHOOK_ISSUES }}
+          EN_WEBHOOK_UPDATES: ${{ secrets.EN_WEBHOOK_UPDATES }}
+          EN_WEBHOOK_ISSUES: ${{ secrets.EN_WEBHOOK_ISSUES }}
+          SERVER: ${{ inputs.server }}
+          ROOM: ${{ inputs.room }}
+          KIND: ${{ inputs.kind }}
+          TITLE: ${{ inputs.title }}
+          DETAILS: ${{ inputs.details }}
+          LINK: ${{ inputs.link }}
+          IMAGE: ${{ inputs.image }}
+        run: python3 scripts/manual_post.py
