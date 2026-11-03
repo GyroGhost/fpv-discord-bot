@@ -24,7 +24,7 @@ def post(server, room, embed):
     if not url:
         print(f"skip {server}/{room}: webhook not set")
         return False
-        payload = {
+payload = {
         "username": BOT_NAMES[server],
         "avatar_url": "https://raw.githubusercontent.com/GyroGhost/fpv-discord-bot/main/logo.png",
         "embeds": [embed],
