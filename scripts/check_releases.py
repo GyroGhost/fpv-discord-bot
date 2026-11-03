@@ -14,9 +14,22 @@ REPOS = {
     "betaflight/betaflight-configurator": "Betaflight Configurator",
     "ExpressLRS/ExpressLRS": "ExpressLRS Firmware",
     "ExpressLRS/ExpressLRS-Configurator": "ExpressLRS Configurator",
+    "iNavFlight/inav": "INAV Firmware",
+    "iNavFlight/inav-configurator": "INAV Configurator",
+    "EdgeTX/edgetx": "EdgeTX",
+    "am32-firmware/AM32": "AM32 ESC Firmware",
 }
 
-COLORS = {"betaflight": 0xFFBB00, "ExpressLRS": 0x1E90FF}
+# Skip auto-built releases so the channel doesn't get spammed every night.
+SKIP_TAGS = ("nightly", "latest", "dev")
+
+COLORS = {
+    "betaflight": 0xFFBB00,
+    "ExpressLRS": 0x1E90FF,
+    "iNavFlight": 0x2ECC71,
+    "EdgeTX": 0x9B59B6,
+    "am32-firmware": 0xE74C3C,
+}
 
 LABELS = {
     "ar": {"type": "النوع", "Release": "Release", "Pre-release": "Pre-release (تجريبي)",
@@ -89,7 +102,12 @@ def main():
             print(f"{repo}: seeded at {releases[0]['tag_name']}")
             continue
 
-        new = [r for r in releases if r["id"] > last_seen and not r.get("draft")]
+        new = [
+            r for r in releases
+            if r["id"] > last_seen
+            and not r.get("draft")
+            and not any(k in r["tag_name"].lower() for k in SKIP_TAGS)
+        ]
         for rel in sorted(new, key=lambda r: r["id"]):
             org = repo.split("/")[0]
             for server in ("ar", "en"):
