@@ -11,7 +11,7 @@ from discord import post
 # Channels to watch: a channel ID (starts with UC) or an @handle.
 CHANNELS = [
     "@JoshuaBardwell",
-    "@UAVTech",
+    "UCxpgzA0iO-7anEAyiLMDRmg",  # Mads Tech,
     "@MadsTech",
     "@ChrisRosser",
     "UCBGpbEe0G9EchyGYCRRd4hg",
