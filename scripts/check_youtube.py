@@ -12,7 +12,7 @@ from discord import post
 CHANNELS = [
     "@JoshuaBardwell",
     "UCxpgzA0iO-7anEAyiLMDRmg",  # Mads Tech,
-    "@MadsTech",
+    "@UAVTech",
     "@ChrisRosser",
     "UCBGpbEe0G9EchyGYCRRd4hg",
 ]
