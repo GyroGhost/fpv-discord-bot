@@ -11,10 +11,10 @@ from discord import post
 # Channels to watch: a channel ID (starts with UC) or an @handle.
 CHANNELS = [
     "@JoshuaBardwell",
-    "UCxpgzA0iO-7anEAyiLMDRmg",  # Mads Tech,
+    "UCxpgzA0iO-7anEAyiLMDRmg",  # Mads Tech
     "@UAVTech",
     "@ChrisRosser",
-    "UCBGpbEe0G9EchyGYCRRd4hg",
+    "UCBGpbEe0G9EchyGYCRRd4hg",  # Nick Burns
 ]
 
 # Where to post: (server, room)
@@ -27,6 +27,7 @@ NS = {
     "media": "http://search.yahoo.com/mrss/",
 }
 HEADERS = {"User-Agent": "Mozilla/5.0 (GyroGhost-fpv-bot)", "Accept-Language": "en"}
+DESC_LEN = 300
 
 
 def fetch(url):
@@ -118,6 +119,30 @@ def get_videos(cid):
         return parse_page(cid)
 
 
+def get_description(vid):
+    """Read a short, clean description from the video page."""
+    try:
+        html = fetch(f"https://www.youtube.com/watch?v={vid}").decode("utf-8", "ignore")
+    except Exception:
+        return ""
+    m = re.search(r'"shortDescription":("(?:[^"\\]|\\.)*")', html)
+    if not m:
+        return ""
+    text = json.loads(m.group(1))
+    # Only the first paragraph: the rest is usually links, sponsors and codes.
+    text = re.split(r"\n\s*\n", text.strip())[0]
+    lines = []
+    for line in text.splitlines():
+        line = re.sub(r"https?://\S+", "", line)
+        line = re.sub(r"#\w+", "", line).strip(" -:|•")
+        if line:
+            lines.append(line)
+    text = "\n".join(lines)
+    if len(text) > DESC_LEN:
+        text = text[:DESC_LEN].rsplit(" ", 1)[0].rstrip() + "…"
+    return text
+
+
 def build_embed(author, v):
     embed = {
         "author": {"name": f"🎬 {author}"},
@@ -126,6 +151,8 @@ def build_embed(author, v):
         "color": 0xFF0000,
         "footer": {"text": "GyroGhost"},
     }
+    if v.get("description"):
+        embed["description"] = v["description"]
     if v["published"]:
         embed["timestamp"] = v["published"]
     if v["thumb"]:
@@ -161,6 +188,7 @@ def main():
 
         new = [v for v in videos if v["id"] not in known]
         for v in reversed(new):  # oldest first
+            v["description"] = get_description(v["id"])
             for server, room in TARGETS:
                 post(server, room, build_embed(author, v))
             print(f"{channel}: posted {v['title']}")
