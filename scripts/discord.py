@@ -8,7 +8,8 @@ import urllib.request
 WEBHOOKS = {
     "ar": {
         "updates": os.environ.get("AR_WEBHOOK_UPDATES", ""),
-        "issues": os.environ.get("AR_WEBHOOK_ISSUES", ""),
+       "issues": os.environ.get("AR_WEBHOOK_ISSUES", ""),
+       "videos": os.environ.get("EN_WEBHOOK_VIDEOS", ""),
     },
     "en": {
         "updates": os.environ.get("EN_WEBHOOK_UPDATES", ""),
