@@ -5,6 +5,7 @@ import os
 import re
 import urllib.request
 import xml.etree.ElementTree as ET
+from datetime import datetime, timedelta, timezone
 
 from discord import post
 
@@ -18,7 +19,7 @@ CHANNELS = [
 ]
 
 # Where to post: (server, room)
-TARGETS = [("en", "videos"), ("ar", "videos")]
+TARGETS = [("en", "videos")]
 
 STATE_FILE = os.path.join(os.path.dirname(__file__), "..", "state", "youtube.json")
 NS = {
@@ -28,6 +29,8 @@ NS = {
 }
 HEADERS = {"User-Agent": "Mozilla/5.0 (GyroGhost-fpv-bot)", "Accept-Language": "en"}
 DESC_LEN = 300
+MAX_AGE = timedelta(days=2)  # only post videos newer than this
+MAX_PER_RUN = 3              # per channel, per run
 
 
 def fetch(url):
@@ -119,28 +122,37 @@ def get_videos(cid):
         return parse_page(cid)
 
 
-def get_description(vid):
-    """Read a short, clean description from the video page."""
+def get_details(vid):
+    """Read the publish date and a short, clean description from the video page."""
     try:
         html = fetch(f"https://www.youtube.com/watch?v={vid}").decode("utf-8", "ignore")
     except Exception:
-        return ""
+        return None, ""
+    published = None
+    m = re.search(r'"(?:publishDate|uploadDate)":"([^"]+)"', html)
+    if m:
+        try:
+            published = datetime.fromisoformat(m.group(1).replace("Z", "+00:00"))
+            if published.tzinfo is None:
+                published = published.replace(tzinfo=timezone.utc)
+        except ValueError:
+            published = None
+    text = ""
     m = re.search(r'"shortDescription":("(?:[^"\\]|\\.)*")', html)
-    if not m:
-        return ""
-    text = json.loads(m.group(1))
-    # Only the first paragraph: the rest is usually links, sponsors and codes.
-    text = re.split(r"\n\s*\n", text.strip())[0]
-    lines = []
-    for line in text.splitlines():
-        line = re.sub(r"https?://\S+", "", line)
-        line = re.sub(r"#\w+", "", line).strip(" -:|•")
-        if line:
-            lines.append(line)
-    text = "\n".join(lines)
-    if len(text) > DESC_LEN:
-        text = text[:DESC_LEN].rsplit(" ", 1)[0].rstrip() + "…"
-    return text
+    if m:
+        text = json.loads(m.group(1))
+        # Only the first paragraph: the rest is usually links, sponsors and codes.
+        text = re.split(r"\n\s*\n", text.strip())[0]
+        lines = []
+        for line in text.splitlines():
+            line = re.sub(r"https?://\S+", "", line)
+            line = re.sub(r"#\w+", "", line).strip(" -:|•")
+            if line:
+                lines.append(line)
+        text = "\n".join(lines)
+        if len(text) > DESC_LEN:
+            text = text[:DESC_LEN].rsplit(" ", 1)[0].rstrip() + "…"
+    return published, text
 
 
 def build_embed(author, v):
@@ -187,10 +199,17 @@ def main():
             continue
 
         new = [v for v in videos if v["id"] not in known]
+        now = datetime.now(timezone.utc)
+        posted = 0
         for v in reversed(new):  # oldest first
-            v["description"] = get_description(v["id"])
+            published, v["description"] = get_details(v["id"])
+            if published is None or now - published > MAX_AGE or posted >= MAX_PER_RUN:
+                print(f"{channel}: skipped old {v['title']}")
+                continue
+            v["published"] = published.isoformat()
             for server, room in TARGETS:
                 post(server, room, build_embed(author, v))
+            posted += 1
             print(f"{channel}: posted {v['title']}")
         # Keep a longer history so a video never gets posted twice.
         seen[cid] = ([v["id"] for v in new] + known)[:50]
