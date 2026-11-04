@@ -1,0 +1,33 @@
+name: YouTube Videos
+
+on:
+  schedule:
+    - cron: "41 * * * *"   # every hour
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: state
+  cancel-in-progress: false
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Check new videos
+        env:
+          EN_WEBHOOK_VIDEOS: ${{ secrets.EN_WEBHOOK_VIDEOS }}
+        run: python3 scripts/check_youtube.py
+
+      - name: Save state
+        run: |
+          git config user.name "GyroGhost"
+          git config user.email "111621931+GyroGhost@users.noreply.github.com"
+          git pull --rebase -q
+          git add state/youtube.json
+          git diff --cached --quiet || git commit -m "Update YouTube state"
+          git push
