@@ -21,6 +21,7 @@ jobs:
       - name: Check new videos
         env:
           EN_WEBHOOK_VIDEOS: ${{ secrets.EN_WEBHOOK_VIDEOS }}
+          AR_WEBHOOK_VIDEOS: ${{ secrets.AR_WEBHOOK_VIDEOS }}
         run: python3 scripts/check_youtube.py
 
       - name: Save state
