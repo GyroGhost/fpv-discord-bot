@@ -65,15 +65,69 @@ def parse_feed(xml):
     return author, videos
 
 
+def walk(node):
+    """Yield every dict inside a nested JSON structure."""
+    if isinstance(node, dict):
+        yield node
+        for v in node.values():
+            yield from walk(v)
+    elif isinstance(node, list):
+        for v in node:
+            yield from walk(v)
+
+
+def parse_page(cid):
+    """Fallback: read the latest videos from the channel's Videos page."""
+    html = fetch(f"https://www.youtube.com/channel/{cid}/videos").decode("utf-8", "ignore")
+    m = re.search(r"var ytInitialData\s*=\s*(\{.*?\});\s*</script>", html, re.S)
+    if not m:
+        raise ValueError("video list not found on channel page")
+    data = json.loads(m.group(1))
+    author = ""
+    videos, ids = [], set()
+    for d in walk(data):
+        if not author and "channelMetadataRenderer" in d:
+            author = d["channelMetadataRenderer"].get("title", "")
+        vid = title = None
+        if "videoRenderer" in d:
+            r = d["videoRenderer"]
+            vid = r.get("videoId")
+            runs = r.get("title", {}).get("runs") or [{}]
+            title = runs[0].get("text") or r.get("title", {}).get("simpleText")
+        elif "lockupViewModel" in d:
+            r = d["lockupViewModel"]
+            vid = r.get("contentId")
+            title = (r.get("metadata", {}).get("lockupMetadataViewModel", {})
+                     .get("title", {}).get("content"))
+        if vid and title and vid not in ids:
+            ids.add(vid)
+            videos.append({
+                "id": vid,
+                "title": title,
+                "url": f"https://www.youtube.com/watch?v={vid}",
+                "published": None,
+                "thumb": f"https://i.ytimg.com/vi/{vid}/hqdefault.jpg",
+            })
+    return author, videos[:15]
+
+
+def get_videos(cid):
+    try:
+        return parse_feed(fetch(f"https://www.youtube.com/feeds/videos.xml?channel_id={cid}"))
+    except Exception:
+        return parse_page(cid)
+
+
 def build_embed(author, v):
     embed = {
         "author": {"name": f"🎬 {author}"},
         "title": v["title"],
         "url": v["url"],
         "color": 0xFF0000,
-        "timestamp": v["published"],
         "footer": {"text": "GyroGhost"},
     }
+    if v["published"]:
+        embed["timestamp"] = v["published"]
     if v["thumb"]:
         embed["image"] = {"url": v["thumb"]}
     return embed
@@ -91,8 +145,7 @@ def main():
     for channel in CHANNELS:
         try:
             cid = resolve(channel, ids)
-            author, videos = parse_feed(
-                fetch(f"https://www.youtube.com/feeds/videos.xml?channel_id={cid}"))
+            author, videos = get_videos(cid)
         except Exception as e:
             print(f"{channel}: {e}")
             continue
@@ -111,7 +164,8 @@ def main():
             for server, room in TARGETS:
                 post(server, room, build_embed(author, v))
             print(f"{channel}: posted {v['title']}")
-        seen[cid] = [v["id"] for v in videos]
+        # Keep a longer history so a video never gets posted twice.
+        seen[cid] = ([v["id"] for v in new] + known)[:50]
 
     with open(STATE_FILE, "w") as f:
         json.dump(state, f, indent=2, sort_keys=True)
