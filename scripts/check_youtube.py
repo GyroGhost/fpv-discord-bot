@@ -18,7 +18,7 @@ CHANNELS = [
 ]
 
 # Where to post: (server, room)
-TARGETS = [("en", "videos")]
+TARGETS = [("en", "videos"), ("ar", "videos")]
 
 STATE_FILE = os.path.join(os.path.dirname(__file__), "..", "state", "youtube.json")
 NS = {
