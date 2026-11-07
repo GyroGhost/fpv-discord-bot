@@ -80,6 +80,21 @@ def walk(node):
             yield from walk(v)
 
 
+AGE_UNITS = {"second": 1, "minute": 60, "hour": 3600, "day": 86400,
+             "week": 604800, "month": 2592000, "year": 31536000}
+
+
+def find_age(node):
+    """Find a text like '3 hours ago' inside a video item and turn it into an age."""
+    for d in walk(node):
+        for val in d.values():
+            if isinstance(val, str):
+                m = re.search(r"(\d+)\s+(second|minute|hour|day|week|month|year)s?\s+ago", val)
+                if m:
+                    return timedelta(seconds=int(m.group(1)) * AGE_UNITS[m.group(2)])
+    return None
+
+
 def parse_page(cid):
     """Fallback: read the latest videos from the channel's Videos page."""
     html = fetch(f"https://www.youtube.com/channel/{cid}/videos").decode("utf-8", "ignore")
@@ -110,6 +125,7 @@ def parse_page(cid):
                 "title": title,
                 "url": f"https://www.youtube.com/watch?v={vid}",
                 "published": None,
+                "age": find_age(r),
                 "thumb": f"https://i.ytimg.com/vi/{vid}/hqdefault.jpg",
             })
     return author, videos[:15]
@@ -199,13 +215,26 @@ def main():
             continue
 
         new = [v for v in videos if v["id"] not in known]
+        # Position of the newest video we already know (the list is newest first).
+        first_known = next((i for i, v in enumerate(videos) if v["id"] in known), len(videos))
         now = datetime.now(timezone.utc)
         posted = 0
         for v in reversed(new):  # oldest first
             published, v["description"] = get_details(v["id"])
-            if published is None or now - published > MAX_AGE or posted >= MAX_PER_RUN:
+            if published is None and v.get("published"):
+                published = datetime.fromisoformat(v["published"].replace("Z", "+00:00"))
+            if published is None and v.get("age") is not None:
+                published = now - v["age"]
+            if published is None:
+                # No date at all: trust it only if it sits above every known video.
+                fresh = videos.index(v) < first_known
+            else:
+                fresh = now - published <= MAX_AGE
+            if not fresh or posted >= MAX_PER_RUN:
                 print(f"{channel}: skipped old {v['title']}")
                 continue
+            if published is None:
+                published = now
             v["published"] = published.isoformat()
             for server, room in TARGETS:
                 post(server, room, build_embed(author, v))
